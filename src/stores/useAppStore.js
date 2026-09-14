@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 
 // ===== MOCK DATA =====
 const MOCK_POSTS = [
@@ -206,43 +207,64 @@ const MOCK_PROFILE = {
   ],
 }
 
-// ===== STORE =====
-const useAppStore = create((set, get) => ({
-  // State
-  posts: MOCK_POSTS,
-  challenges: MOCK_CHALLENGES,
-  buddies: MOCK_BUDDIES,
-  projects: MOCK_PROJECTS,
-  notifications: MOCK_NOTIFICATIONS,
-  profile: MOCK_PROFILE,
-  activeTab: 'feed',
-  unreadNotifications: MOCK_NOTIFICATIONS.filter(n => n.unread).length,
+// ===== STORE with Persistence =====
+const useAppStore = create(
+  persist(
+    (set, get) => ({
+      // State
+      posts: MOCK_POSTS,
+      challenges: MOCK_CHALLENGES,
+      buddies: MOCK_BUDDIES,
+      projects: MOCK_PROJECTS,
+      notifications: MOCK_NOTIFICATIONS,
+      profile: MOCK_PROFILE,
+      activeTab: 'feed',
+      unreadNotifications: MOCK_NOTIFICATIONS.filter(n => n.unread).length,
 
-  // Actions
-  setActiveTab: (tab) => set({ activeTab: tab }),
+      // Actions
+      setActiveTab: (tab) => set({ activeTab: tab }),
 
-  toggleLike: (postId) => set((state) => ({
-    posts: state.posts.map(p =>
-      p.id === postId
-        ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 }
-        : p
-    ),
-  })),
+      toggleLike: (postId) => set((state) => ({
+        posts: state.posts.map(p =>
+          p.id === postId
+            ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 }
+            : p
+        ),
+      })),
 
-  connectBuddy: (buddyId) => set((state) => ({
-    buddies: state.buddies.map(b =>
-      b.id === buddyId ? { ...b, connected: !b.connected } : b
-    ),
-  })),
+      connectBuddy: (buddyId) => set((state) => ({
+        buddies: state.buddies.map(b =>
+          b.id === buddyId ? { ...b, connected: !b.connected } : b
+        ),
+      })),
 
-  markNotificationsRead: () => set((state) => ({
-    notifications: state.notifications.map(n => ({ ...n, unread: false })),
-    unreadNotifications: 0,
-  })),
+      markNotificationsRead: () => set((state) => ({
+        notifications: state.notifications.map(n => ({ ...n, unread: false })),
+        unreadNotifications: 0,
+      })),
 
-  addPost: (post) => set((state) => ({
-    posts: [post, ...state.posts],
-  })),
-}))
+      addPost: (post) => set((state) => ({
+        posts: [post, ...state.posts],
+      })),
+
+      // Reset to original mock data (useful for testing)
+      resetStore: () => set({
+        posts: MOCK_POSTS,
+        buddies: MOCK_BUDDIES,
+        notifications: MOCK_NOTIFICATIONS,
+        unreadNotifications: MOCK_NOTIFICATIONS.filter(n => n.unread).length,
+      }),
+    }),
+    {
+      name: 'devpath-storage',
+      partialize: (state) => ({
+        posts: state.posts,
+        buddies: state.buddies,
+        notifications: state.notifications,
+        unreadNotifications: state.unreadNotifications,
+      }),
+    }
+  )
+)
 
 export default useAppStore
