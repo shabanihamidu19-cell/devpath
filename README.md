@@ -1,4 +1,3 @@
-=======
 # DevPath 🚀
 
 **Social network kwa programming learners Afrika Mashariki.**
@@ -9,13 +8,13 @@ Badala ya kuwa "Instagram for programmers," DevPath ni social network inayozungu
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 + Vite |
-| Routing | React Router v6 |
-| State | Zustand |
-| Mobile | Capacitor 6 (Android + iOS) |
-| Styling | CSS Modules |
+| Layer      | Technology                  |
+|------------|-----------------------------|
+| Frontend   | React 18 + Vite             |
+| Routing    | React Router v6             |
+| State      | Zustand                     |
+| Mobile     | Capacitor 6 (Android + iOS) |
+| Styling    | CSS Modules + Design System |
 
 ---
 
@@ -43,13 +42,13 @@ npm run dev
 ### Hatua
 
 ```bash
-# 1. Build project
+# 1. Build web assets
 npm run build
 
-# 2. Ongeza Android platform
+# 2. Ongeza Android platform (mara ya kwanza tu)
 npm run cap:add:android
 
-# 3. Sync files
+# 3. Sync files to native project
 npm run cap:sync
 
 # 4. Fungua Android Studio
@@ -57,8 +56,10 @@ npm run cap:open:android
 ```
 
 Kwenye Android Studio:
-- **Build → Generate Signed APK** (kwa release)
+- **Build → Generate Signed Bundle / APK** (kwa release)
 - **Run → Run 'app'** (kwa testing)
+
+> **Note:** Capacitor hutumia folder `dist/` (baada ya `vite build`) kama `webDir`. Hii ndiyo standard ya kisasa (siyo `www/` kama Cordova ya zamani).
 
 ---
 
@@ -68,21 +69,22 @@ Kwenye Android Studio:
 devpath/
 ├── src/
 │   ├── components/        # Shared components
-│   │   ├── BottomNav.jsx  # Navigation ya chini
-│   │   └── PostCard.jsx   # Post card component
+│   │   ├── BottomNav.jsx
+│   │   ├── Icons.jsx         # Icon system
+│   │   └── PostCard.jsx
 │   ├── pages/             # Screens zote
-│   │   ├── FeedPage.jsx       # Home feed
-│   │   ├── ExplorePage.jsx    # Discover & buddies
-│   │   ├── ChallengesPage.jsx # Learning challenges
+│   │   ├── FeedPage.jsx
+│   │   ├── ExplorePage.jsx
+│   │   ├── ChallengesPage.jsx
 │   │   ├── NotificationsPage.jsx
-│   │   └── ProfilePage.jsx    # Developer journey
+│   │   └── ProfilePage.jsx
 │   ├── stores/
-│   │   └── useAppStore.js # Zustand global state
+│   │   └── useAppStore.js   # Zustand global state
 │   ├── styles/
-│   │   └── global.css     # Design system tokens
+│   │   └── global.css       # Design system tokens
 │   ├── App.jsx
 │   └── main.jsx
-├── capacitor.config.json  # Capacitor settings
+├── capacitor.config.json
 ├── vite.config.js
 └── index.html
 ```
@@ -95,8 +97,9 @@ devpath/
 - ✅ **Compose** — Andika post mpya na code block
 - ✅ **Explore** — Study buddies + Projects showcase
 - ✅ **Challenges** — 30-day learning tracks na day tracker
-- ✅ **Notifications** — Arifa za real-time
+- ✅ **Notifications** — Arifa + unread badge
 - ✅ **Profile** — Journey, Projects, Badges, Streak
+- ✅ **Icon System** — Clean inline SVG icons
 
 ---
 
@@ -108,14 +111,14 @@ devpath/
 - [ ] Push notifications (Capacitor Push)
 - [ ] Real-time feed (WebSockets)
 - [ ] Kiswahili full i18n
-- [ ] Offline mode
-- [ ] Code syntax highlighting (Prism.js)
+- [ ] Offline mode + local persistence
+- [ ] Code syntax highlighting (Prism.js / highlight.js)
 
 ---
 
 ## Mchango (Contributing)
 
-PR zote zinakaribishwa! Angalia `CONTRIBUTING.md` kwa maelezo.
+PR zote zinakaribishwa!
 
 ---
 
@@ -126,4 +129,3 @@ MIT License — Huru kutumia, kubadilisha, na kusambaza.
 ---
 
 *Ulioundwa na moyo wa East Africa 🌍*
->>>>>>> 0581705 (Initial commit)
