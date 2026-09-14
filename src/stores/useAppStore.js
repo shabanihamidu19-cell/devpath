@@ -13,6 +13,7 @@ const MOCK_POSTS = [
     comments: 8,
     liked: false,
     timeAgo: 'dakika 12',
+    createdAt: Date.now() - 12 * 60 * 1000,
     tags: ['JavaScript'],
   },
   {
@@ -25,6 +26,7 @@ const MOCK_POSTS = [
     comments: 15,
     liked: false,
     timeAgo: 'saa 1',
+    createdAt: Date.now() - 60 * 60 * 1000,
     tags: ['JavaScript'],
   },
   {
@@ -37,6 +39,7 @@ const MOCK_POSTS = [
     comments: 23,
     liked: false,
     timeAgo: 'saa 3',
+    createdAt: Date.now() - 3 * 60 * 60 * 1000,
     tags: ['HTML', 'CSS', 'JavaScript'],
   },
   {
@@ -48,6 +51,7 @@ const MOCK_POSTS = [
     comments: 6,
     liked: false,
     timeAgo: 'saa 5',
+    createdAt: Date.now() - 5 * 60 * 60 * 1000,
     tags: ['JavaScript'],
   },
 ]
@@ -207,7 +211,44 @@ const MOCK_PROFILE = {
   ],
 }
 
-// ===== STORE with Persistence =====
+/**
+ * Feed Ranking Algorithm (Phase 3)
+ * Score = engagement + recency + type boost + East Africa boost
+ */
+function rankPosts(posts) {
+  const now = Date.now()
+
+  return [...posts]
+    .map((post) => {
+      const ageHours = Math.max(0.1, (now - (post.createdAt || now)) / (1000 * 60 * 60))
+      const recencyScore = 100 / Math.sqrt(ageHours) // newer = higher
+
+      const engagementScore = (post.likes || 0) * 1.5 + (post.comments || 0) * 3
+
+      // Learning-focused type boost
+      const typeBoost = {
+        learn: 15,
+        bug: 20,      // bugs need help → higher visibility
+        project: 12,
+        question: 18,
+        challenge: 10,
+        progress: 8,
+      }[post.type] || 5
+
+      // East Africa users slight boost
+      const eaBoost = ['🇹🇿', '🇰🇪', '🇺🇬', '🇷🇼', '🇧🇮'].includes(post.user?.country) ? 8 : 0
+
+      // High streak users get small boost (inspiration)
+      const streakBoost = (post.user?.streak || 0) >= 20 ? 5 : 0
+
+      const score = recencyScore + engagementScore + typeBoost + eaBoost + streakBoost
+
+      return { ...post, _score: score }
+    })
+    .sort((a, b) => b._score - a._score)
+}
+
+// ===== STORE =====
 const useAppStore = create(
   persist(
     (set, get) => ({
@@ -219,41 +260,58 @@ const useAppStore = create(
       notifications: MOCK_NOTIFICATIONS,
       profile: MOCK_PROFILE,
       activeTab: 'feed',
-      unreadNotifications: MOCK_NOTIFICATIONS.filter(n => n.unread).length,
+      unreadNotifications: MOCK_NOTIFICATIONS.filter((n) => n.unread).length,
+      language: 'sw', // 'sw' | 'en'
 
       // Actions
       setActiveTab: (tab) => set({ activeTab: tab }),
 
-      toggleLike: (postId) => set((state) => ({
-        posts: state.posts.map(p =>
-          p.id === postId
-            ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 }
-            : p
-        ),
-      })),
+      setLanguage: (lang) => set({ language: lang }),
 
-      connectBuddy: (buddyId) => set((state) => ({
-        buddies: state.buddies.map(b =>
-          b.id === buddyId ? { ...b, connected: !b.connected } : b
-        ),
-      })),
+      toggleLike: (postId) =>
+        set((state) => ({
+          posts: state.posts.map((p) =>
+            p.id === postId
+              ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 }
+              : p
+          ),
+        })),
 
-      markNotificationsRead: () => set((state) => ({
-        notifications: state.notifications.map(n => ({ ...n, unread: false })),
-        unreadNotifications: 0,
-      })),
+      connectBuddy: (buddyId) =>
+        set((state) => ({
+          buddies: state.buddies.map((b) =>
+            b.id === buddyId ? { ...b, connected: !b.connected } : b
+          ),
+        })),
 
-      addPost: (post) => set((state) => ({
-        posts: [post, ...state.posts],
-      })),
+      markNotificationsRead: () =>
+        set((state) => ({
+          notifications: state.notifications.map((n) => ({ ...n, unread: false })),
+          unreadNotifications: 0,
+        })),
 
-      // Reset to original mock data (useful for testing)
-      resetStore: () => set({
-        posts: MOCK_POSTS,
-        buddies: MOCK_BUDDIES,
-        notifications: MOCK_NOTIFICATIONS,
-        unreadNotifications: MOCK_NOTIFICATIONS.filter(n => n.unread).length,
-      }),
+      addPost: (post) =>
+        set((state) => ({
+          posts: [
+            {
+              ...post,
+              createdAt: Date.now(),
+              timeAgo: 'sasa hivi',
+            },
+            ...state.posts,
+          ],
+        })),
+
+      // Ranked feed (algorithm)
+      getRankedPosts: () => rankPosts(get().posts),
+
+      resetStore: () =>
+        set({
+          posts: MOCK_POSTS,
+          buddies: MOCK_BUDDIES,
+          notifications: MOCK_NOTIFICATIONS,
+          unreadNotifications: MOCK_NOTIFICATIONS.filter((n) => n.unread).length,
+        }),
     }),
     {
       name: 'devpath-storage',
@@ -262,6 +320,7 @@ const useAppStore = create(
         buddies: state.buddies,
         notifications: state.notifications,
         unreadNotifications: state.unreadNotifications,
+        language: state.language,
       }),
     }
   )
