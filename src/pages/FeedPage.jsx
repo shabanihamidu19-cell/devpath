@@ -1,19 +1,45 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAppStore from '../stores/useAppStore'
 import useTranslation from '../i18n/useTranslation'
+import { fetchPosts, createPost } from '../lib/posts'
 import PostCard from '../components/PostCard'
 import styles from './FeedPage.module.css'
 
 export default function FeedPage() {
   const navigate = useNavigate()
-  const getRankedPosts = useAppStore((s) => s.getRankedPosts)
   const unread = useAppStore((s) => s.unreadNotifications)
+  const mockPosts = useAppStore((s) => s.getRankedPosts)
   const { t } = useTranslation()
   const [showCompose, setShowCompose] = useState(false)
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [usingMock, setUsingMock] = useState(false)
 
-  // Ranked posts via algorithm
-  const posts = useMemo(() => getRankedPosts(), [getRankedPosts])
+  const loadPosts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await fetchPosts()
+      if (data && data.length > 0) {
+        setPosts(data)
+        setUsingMock(false)
+      } else {
+        // Empty DB → show mock so app is not empty
+        setPosts(mockPosts())
+        setUsingMock(true)
+      }
+    } catch (err) {
+      console.warn('Fetch posts failed, using mock:', err.message)
+      setPosts(mockPosts())
+      setUsingMock(true)
+    } finally {
+      setLoading(false)
+    }
+  }, [mockPosts])
+
+  useEffect(() => {
+    loadPosts()
+  }, [loadPosts])
 
   const POST_TYPES = [
     { type: 'learn', emoji: '🧠', label: t('type.learn') },
@@ -25,7 +51,9 @@ export default function FeedPage() {
   return (
     <div className={styles.page}>
       <header className="top-bar">
-        <div className="logo">Dev<span>Path</span></div>
+        <div className="logo">
+          Dev<span>Path</span>
+        </div>
         <div className={styles.topActions}>
           <button
             aria-label={`${t('nav.alerts')} ${unread > 0 ? `(${unread})` : ''}`}
@@ -42,7 +70,6 @@ export default function FeedPage() {
       </header>
 
       <div className="scroll-area">
-        {/* Compose bar */}
         <div
           className={styles.composeBar}
           onClick={() => setShowCompose(true)}
@@ -50,7 +77,7 @@ export default function FeedPage() {
           tabIndex={0}
           aria-label={t('feed.newPost')}
         >
-          <div className="avatar avatar-sm av-teal">KT</div>
+          <div className="avatar avatar-sm av-teal">ME</div>
           <span className={styles.composePlaceholder}>{t('feed.composePlaceholder')}</span>
           <div className={styles.composeIcons}>
             {POST_TYPES.map((pt) => (
@@ -69,7 +96,6 @@ export default function FeedPage() {
           </div>
         </div>
 
-        {/* Active challenge banner */}
         <div
           className={styles.challengeBanner}
           onClick={() => navigate('/challenges')}
@@ -99,28 +125,50 @@ export default function FeedPage() {
           </button>
         </div>
 
-        {/* Ranked Posts */}
-        {posts.map((post, i) => (
-          <div key={post.id} style={{ animationDelay: `${i * 0.05}s` }}>
-            <PostCard post={post} />
+        {loading && (
+          <div style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)', fontSize: 13 }}>
+            Inapakia posts...
           </div>
-        ))}
+        )}
+
+        {!loading && posts.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)', fontSize: 14 }}>
+            Hakuna posts bado. Kuwa wa kwanza kuchapisha!
+          </div>
+        )}
+
+        {!loading &&
+          posts.map((post, i) => (
+            <div key={post.id} style={{ animationDelay: `${i * 0.05}s` }}>
+              <PostCard post={post} />
+            </div>
+          ))}
 
         <div className="bottom-spacer" />
       </div>
 
-      {showCompose && <ComposeModal onClose={() => setShowCompose(false)} />}
+      {showCompose && (
+        <ComposeModal
+          onClose={() => setShowCompose(false)}
+          onPosted={() => {
+            setShowCompose(false)
+            loadPosts()
+          }}
+        />
+      )}
     </div>
   )
 }
 
-function ComposeModal({ onClose }) {
-  const addPost = useAppStore((s) => s.addPost)
+function ComposeModal({ onClose, onPosted }) {
+  const addLocalPost = useAppStore((s) => s.addPost)
   const { t } = useTranslation()
   const [selectedType, setSelectedType] = useState('learn')
   const [content, setContent] = useState('')
   const [code, setCode] = useState('')
   const [showCode, setShowCode] = useState(false)
+  const [posting, setPosting] = useState(false)
+  const [error, setError] = useState('')
 
   const POST_TYPES_FULL = [
     { type: 'learn', emoji: '🧠', label: t('type.learn') },
@@ -131,44 +179,60 @@ function ComposeModal({ onClose }) {
     { type: 'progress', emoji: '📈', label: t('type.progress') },
   ]
 
-  const handlePost = () => {
-    if (!content.trim()) return
-    addPost({
-      id: Date.now().toString(),
-      user: {
-        id: 'me',
-        name: 'KIDCODER TZ',
-        initials: 'KT',
-        avatarColor: 'av-teal',
-        country: '🇹🇿',
-        city: 'Dar es Salaam',
-        streak: 24,
-      },
-      type: selectedType,
-      content: content.trim(),
-      code: code.trim() || null,
-      likes: 0,
-      comments: 0,
-      liked: false,
-      tags: [],
-    })
-    onClose()
+  const handlePost = async () => {
+    if (!content.trim() || posting) return
+    setPosting(true)
+    setError('')
+
+    try {
+      await createPost({
+        type: selectedType,
+        content: content.trim(),
+        code: code.trim() || null,
+      })
+      onPosted()
+    } catch (err) {
+      // Fallback to local if Supabase fails
+      console.warn('Supabase post failed, saving locally:', err.message)
+      addLocalPost({
+        id: Date.now().toString(),
+        user: {
+          id: 'me',
+          name: 'Wewe',
+          initials: 'ME',
+          avatarColor: 'av-teal',
+          country: '🇹🇿',
+          city: 'Dar es Salaam',
+          streak: 0,
+        },
+        type: selectedType,
+        content: content.trim(),
+        code: code.trim() || null,
+        likes: 0,
+        comments: 0,
+        liked: false,
+        tags: [],
+      })
+      onPosted()
+    } finally {
+      setPosting(false)
+    }
   }
 
   return (
     <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={t('feed.newPost')}>
       <div className={styles.modal}>
         <div className={styles.modalHeader}>
-          <button className={styles.cancelBtn} onClick={onClose}>
+          <button className={styles.cancelBtn} onClick={onClose} disabled={posting}>
             {t('feed.cancel')}
           </button>
           <span className={styles.modalTitle}>{t('feed.newPost')}</span>
           <button
             className={`btn-primary ${styles.postBtn}`}
             onClick={handlePost}
-            disabled={!content.trim()}
+            disabled={!content.trim() || posting}
           >
-            {t('feed.post')}
+            {posting ? '...' : t('feed.post')}
           </button>
         </div>
 
@@ -187,7 +251,7 @@ function ComposeModal({ onClose }) {
 
         <div className={styles.modalBody}>
           <div className={styles.composeRow}>
-            <div className="avatar avatar-sm av-teal">KT</div>
+            <div className="avatar avatar-sm av-teal">ME</div>
             <textarea
               className={styles.textarea}
               placeholder={t('feed.composePlaceholder')}
@@ -206,6 +270,10 @@ function ComposeModal({ onClose }) {
               onChange={(e) => setCode(e.target.value)}
               rows={4}
             />
+          )}
+
+          {error && (
+            <div style={{ color: 'var(--coral-text)', fontSize: 13, padding: '0 16px' }}>{error}</div>
           )}
         </div>
 
