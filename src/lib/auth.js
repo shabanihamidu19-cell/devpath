@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 
 /**
  * Sign up with email + password
- * Also creates a profile row
+ * Creates profile row and returns session if email confirm is disabled
  */
 export async function signUp({ email, password, fullName, username }) {
   const { data, error } = await supabase.auth.signUp({
@@ -18,15 +18,17 @@ export async function signUp({ email, password, fullName, username }) {
 
   if (error) throw error
 
-  // Create profile if user was created
   if (data.user) {
-    const { error: profileError } = await supabase.from('profiles').upsert({
-      id: data.user.id,
-      full_name: fullName || email.split('@')[0],
-      username: username || email.split('@')[0],
-      country: '🇹🇿',
-      city: 'Dar es Salaam',
-    })
+    const { error: profileError } = await supabase.from('profiles').upsert(
+      {
+        id: data.user.id,
+        full_name: fullName || email.split('@')[0],
+        username: username || email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, ''),
+        country: '🇹🇿',
+        city: 'Dar es Salaam',
+      },
+      { onConflict: 'id' }
+    )
 
     if (profileError) {
       console.warn('Profile create warning:', profileError.message)
@@ -70,7 +72,10 @@ export async function getSession() {
  * Get current user + profile
  */
 export async function getCurrentUser() {
-  const { data: { user }, error } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser()
   if (error) throw error
   if (!user) return null
 
