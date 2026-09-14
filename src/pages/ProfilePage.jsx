@@ -1,6 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useAppStore from '../stores/useAppStore'
 import useTranslation from '../i18n/useTranslation'
+import { getCurrentUser, signOut } from '../lib/auth'
 import styles from './ProfilePage.module.css'
 
 const TECH_CLS = {
@@ -14,16 +16,55 @@ const TECH_CLS = {
 }
 
 export default function ProfilePage() {
-  const profile = useAppStore((s) => s.profile)
+  const mockProfile = useAppStore((s) => s.profile)
   const { t, lang, setLanguage } = useTranslation()
+  const navigate = useNavigate()
   const [tab, setTab] = useState(0)
-  const pct = Math.round((profile.streak / profile.streakGoal) * 100)
+  const [profile, setProfile] = useState(mockProfile)
+  const [loggingOut, setLoggingOut] = useState(false)
 
+  useEffect(() => {
+    getCurrentUser()
+      .then((data) => {
+        if (data?.profile) {
+          const p = data.profile
+          setProfile({
+            ...mockProfile,
+            name: p.full_name || p.username || mockProfile.name,
+            initials: (p.full_name || p.username || 'U')
+              .split(' ')
+              .map((w) => w[0])
+              .join('')
+              .slice(0, 2)
+              .toUpperCase(),
+            country: p.country || '🇹🇿',
+            city: p.city || '',
+            streak: p.streak || 0,
+            bio: p.bio || mockProfile.bio,
+            level: p.level || mockProfile.level,
+            learning: p.learning?.length ? p.learning : mockProfile.learning,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [mockProfile])
+
+  const pct = Math.round((profile.streak / (profile.streakGoal || 30)) * 100)
   const TABS = [t('profile.journey'), t('profile.projects'), t('profile.badges')]
+
+  const handleLogout = async () => {
+    setLoggingOut(true)
+    try {
+      await signOut()
+      navigate('/auth')
+    } catch (err) {
+      console.error(err)
+      setLoggingOut(false)
+    }
+  }
 
   return (
     <div className={styles.page}>
-      {/* Dark header */}
       <div className={styles.darkHeader}>
         <div className={styles.profileTop}>
           <div className={`avatar avatar-lg av-dark`}>{profile.initials}</div>
@@ -34,55 +75,55 @@ export default function ProfilePage() {
               {profile.country} {profile.city}
             </div>
           </div>
-          <button className={styles.editBtn}>{t('profile.edit')}</button>
+          <button className={styles.editBtn} onClick={handleLogout} disabled={loggingOut}>
+            {loggingOut ? '...' : 'Toka'}
+          </button>
         </div>
 
-        {/* Streak bar */}
         <div className={styles.streakBar}>
           <span className={styles.fireEmoji}>🔥</span>
           <div className={styles.streakInfo}>
             <span className={styles.streakNum}>{profile.streak}</span>
-            <span className={styles.streakLabel}>{t('profile.streak', { count: '' }).replace(/\d+\s*/, '').trim() || 'day streak'}</span>
+            <span className={styles.streakLabel}>day streak</span>
           </div>
           <div className={styles.streakTrack}>
             <div className={styles.streakGoal}>
-              {lang === 'sw' ? `Lengo: Siku ${profile.streakGoal}` : `Goal: ${profile.streakGoal} days`}
+              {lang === 'sw' ? `Lengo: Siku ${profile.streakGoal || 30}` : `Goal: ${profile.streakGoal || 30} days`}
             </div>
             <div className={styles.streakRail}>
               <div
                 className={styles.streakFill}
-                style={{ width: `${pct}%` }}
+                style={{ width: `${Math.min(pct, 100)}%` }}
                 role="progressbar"
                 aria-valuenow={profile.streak}
-                aria-valuemax={profile.streakGoal}
+                aria-valuemax={profile.streakGoal || 30}
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Stats row */}
       <div className={styles.statsRow}>
         <div className={styles.statBox}>
-          <div className={styles.statNum}>{profile.stats.projects}</div>
+          <div className={styles.statNum}>{profile.stats?.projects || 0}</div>
           <div className={styles.statLabel}>{t('profile.projects')}</div>
         </div>
         <div className={styles.statBox}>
-          <div className={styles.statNum}>{profile.stats.challenges}</div>
+          <div className={styles.statNum}>{profile.stats?.challenges || 0}</div>
           <div className={styles.statLabel}>Challenges</div>
         </div>
         <div className={styles.statBox}>
-          <div className={styles.statNum}>{profile.stats.activities}</div>
+          <div className={styles.statNum}>{profile.stats?.activities || 0}</div>
           <div className={styles.statLabel}>Activities</div>
         </div>
       </div>
 
-      {/* Language Switcher */}
+      {/* Language */}
       <div className={styles.techRow} style={{ justifyContent: 'space-between' }}>
         <span className={styles.techLabel}>{t('profile.language')}:</span>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            className={`tech-badge ${lang === 'sw' ? 'tb-js' : ''}`}
+            className="tech-badge"
             style={{
               cursor: 'pointer',
               border: lang === 'sw' ? '1.5px solid var(--brand-teal)' : '1px solid var(--border)',
@@ -93,7 +134,7 @@ export default function ProfilePage() {
             🇹🇿 {t('profile.languageSw')}
           </button>
           <button
-            className={`tech-badge ${lang === 'en' ? 'tb-js' : ''}`}
+            className="tech-badge"
             style={{
               cursor: 'pointer',
               border: lang === 'en' ? '1.5px solid var(--brand-teal)' : '1px solid var(--border)',
@@ -106,17 +147,15 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Tech stack */}
       <div className={styles.techRow}>
         <span className={styles.techLabel}>{lang === 'sw' ? 'Inajifunza:' : 'Learning:'}</span>
-        {profile.learning.map((tech) => (
+        {(profile.learning || []).map((tech) => (
           <span key={tech} className={`tech-badge ${TECH_CLS[tech] || 'tb-js'} ${styles.activeTech}`}>
             {tech}
           </span>
         ))}
       </div>
 
-      {/* Tabs */}
       <div className={styles.tabs} role="tablist">
         {TABS.map((label, i) => (
           <button
@@ -142,10 +181,11 @@ export default function ProfilePage() {
 }
 
 function JourneyTab({ profile }) {
+  const items = profile.journey || []
   return (
     <>
       <p className="section-label">Journey</p>
-      {profile.journey.map((item) => (
+      {items.map((item) => (
         <div
           key={item.id}
           className={`${styles.journeyItem} ${item.status === 'current' ? styles.journeyCurrent : ''}`}
@@ -165,12 +205,11 @@ function JourneyTab({ profile }) {
 
 function ProjectsTab({ profile, lang }) {
   const TECH_CLS_P = { HTML: 'tb-html', CSS: 'tb-css', JS: 'tb-js' }
+  const projects = profile.projects || []
   return (
     <>
-      <p className="section-label">
-        Projects ({profile.projects.length})
-      </p>
-      {profile.projects.map((p) => (
+      <p className="section-label">Projects ({projects.length})</p>
+      {projects.map((p) => (
         <div key={p.id} className={`card ${styles.projCard}`}>
           <div className={styles.projTop}>
             <div>
@@ -183,15 +222,13 @@ function ProjectsTab({ profile, lang }) {
           </div>
           <div className={styles.projFooter}>
             <div style={{ display: 'flex', gap: 5 }}>
-              {p.tech.map((tech) => (
+              {(p.tech || []).map((tech) => (
                 <span key={tech} className={`tech-badge ${TECH_CLS_P[tech] || 'tb-js'}`}>
                   {tech}
                 </span>
               ))}
             </div>
-            <span style={{ fontSize: 12, color: 'var(--coral-text)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              ❤️ {p.likes}
-            </span>
+            <span style={{ fontSize: 12, color: 'var(--coral-text)' }}>❤️ {p.likes}</span>
           </div>
         </div>
       ))}
@@ -200,11 +237,12 @@ function ProjectsTab({ profile, lang }) {
 }
 
 function BadgesTab({ profile }) {
+  const badges = profile.badges || []
   return (
     <>
-      <p className="section-label">Achievements ({profile.badges.length})</p>
+      <p className="section-label">Achievements ({badges.length})</p>
       <div className={styles.badgesGrid}>
-        {profile.badges.map((b) => (
+        {badges.map((b) => (
           <div key={b.id} className={`card ${styles.badgeCard}`}>
             <div className={styles.badgeEmoji}>{b.emoji}</div>
             <div className={styles.badgeName}>{b.name}</div>
