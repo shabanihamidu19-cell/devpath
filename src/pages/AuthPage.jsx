@@ -5,7 +5,7 @@ import styles from './AuthPage.module.css'
 
 export default function AuthPage() {
   const navigate = useNavigate()
-  const [mode, setMode] = useState('signin') // 'signin' | 'signup'
+  const [mode, setMode] = useState('signup') // default to registration
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
@@ -21,20 +21,44 @@ export default function AuthPage() {
 
     try {
       if (mode === 'signup') {
-        await signUp({
+        const data = await signUp({
           email: email.trim(),
           password,
           fullName: fullName.trim() || email.split('@')[0],
-          username: email.split('@')[0],
+          username: email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, ''),
         })
-        setMessage('Akaunti imeundwa! Angalia email yako kuthibitisha, au ingia sasa.')
-        setMode('signin')
+
+        // If session exists (email confirm disabled) → go to app
+        if (data.session) {
+          navigate('/')
+          return
+        }
+
+        // Otherwise try auto sign-in
+        try {
+          await signIn({ email: email.trim(), password })
+          navigate('/')
+          return
+        } catch {
+          setMessage('Akaunti imeundwa! Sasa ingia na email yako.')
+          setMode('signin')
+        }
       } else {
         await signIn({ email: email.trim(), password })
         navigate('/')
       }
     } catch (err) {
-      setError(err.message || 'Hitilafu imetokea. Jaribu tena.')
+      const msg = err?.message || 'Hitilafu imetokea. Jaribu tena.'
+      if (msg.includes('Invalid login')) {
+        setError('Email au password si sahihi.')
+      } else if (msg.includes('already registered') || msg.includes('already been registered')) {
+        setError('Email hii tayari imesajiliwa. Ingia badala yake.')
+        setMode('signin')
+      } else if (msg.includes('Password')) {
+        setError('Password lazima iwe angalau herufi 6.')
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false)
     }
@@ -102,9 +126,7 @@ export default function AuthPage() {
             setMessage('')
           }}
         >
-          {mode === 'signin'
-            ? 'Huna akaunti? Jisajili'
-            : 'Una akaunti? Ingia'}
+          {mode === 'signin' ? 'Huna akaunti? Jisajili' : 'Una akaunti? Ingia'}
         </button>
       </div>
     </div>
